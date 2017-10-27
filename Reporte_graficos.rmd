@@ -1,0 +1,137 @@
+---
+title: "Analisis"
+author: "JosÃ© Fernando Zea"
+date: "26 de julio de 2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = F}
+rm(list = ls())
+
+library(forcats)
+library(dplyr)
+library(ggplot2)
+library(sae)
+library(forcats)
+library(tools) # Para la función toTitleCase
+
+
+```
+
+```{r, echo = F}
+setwd("D:/Gdrive/Laboral 2017/USTA/FODEIN/datos_procesados")
+
+Estimaciones_DIR_FH_ingreso <- readRDS("Estimaciones_DIR_FH_ingreso.rds")
+Estimaciones_DIR_FH_ingreso$MCPIO <- toTitleCase(tolower(Estimaciones_DIR_FH_ingreso$MCPIO))
+Estimaciones_DIR_FH_ingreso$MCPIO  <- gsub("De ", "de ", Estimaciones_DIR_FH_ingreso$MCPIO )
+
+Estimaciones_DIR_FH_desempleo <- readRDS("Estimaciones_DIR_FH_desempleo.rds")
+Estimaciones_DIR_FH_desempleo$MCPIO <- toTitleCase(tolower(Estimaciones_DIR_FH_desempleo$MCPIO))
+Estimaciones_DIR_FH_desempleo$MCPIO  <- gsub("De ", "de ", Estimaciones_DIR_FH_desempleo$MCPIO )
+```
+
+# Diagrama de dispersión de ingreso vs desempleo 
+
+```{r, echo = F}
+# Scatter plot Ingreso y desempleo para todos los municipios con la estimación EBLUP
+# Para el caso dentro de muestra FH, para el caso de fuera de muestra con el pronóstico del componente fijo de FH
+
+# Eje x: ingreso Eje y: desempleo
+Estima_EBLUP <- inner_join(Estimaciones_DIR_FH_ingreso[c("COD_DANE", "MCPIO", "Conjunto",
+                                                         "eblup.FH")],
+                Estimaciones_DIR_FH_desempleo[c("COD_DANE", "eblup.FH")], by = "COD_DANE")
+names(Estima_EBLUP)[c(4, 5)] <- c("eblupFH_ingreso", "eblupFH_proporcion")
+
+grafico_dispersion_ingreso_desempleo <- ggplot(Estima_EBLUP, aes(x = eblupFH_ingreso,
+       y = eblupFH_proporcion, colour = Conjunto, label = MCPIO ) ) + geom_point() + 
+  xlab("Promedio ingreso (miles de pesos)") +
+  ylab("Proporción de desemplaeados") +  
+   theme(axis.text.x = element_text(size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+         axis.text.y = element_text(size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+     axis.title.x = element_text(size = 16, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(size = 16, angle = 90, hjust = .5, vjust = .5, face = "plain")) +  geom_text(aes(label = MCPIO), hjust=0, vjust=0, size = 3) +  theme_bw() 
+X11()
+print(grafico_dispersion_ingreso_desempleo)  
+
+```
+
+# Estimaciones directas vs Estimaciones indirectas (FH): ingreso
+
+```{r, echo = F}
+
+estimacionesDentroEMB_ingreso <-  Estimaciones_DIR_FH_ingreso[Estimaciones_DIR_FH_ingreso$Conjunto == "Dentro_EMB",]
+
+estimacionesDentroEMB_ingreso <- estimacionesDentroEMB_ingreso %>% arrange(-cv.DIR)
+estimacionesDentroEMB_ingreso$MCPIO <- fct_inorder(as.factor(estimacionesDentroEMB_ingreso$MCPIO))
+
+X11()
+plot(as.factor(estimacionesDentroEMB_ingreso$MCPIO), estimacionesDentroEMB_ingreso$cv.DIR, type = "n", ylab = "CV", 
+main = "Área (ordenado por los CVE de las estimaciones del ingreso directas)",
+cex.axis = 1, cex.lab = 1, las = 2)
+points(estimacionesDentroEMB_ingreso$cv.DIR, type = "p", col = 1, lwd = 2, pch = 1)
+points(estimacionesDentroEMB_ingreso$cv.FH, type = "p", col = 4, lwd = 2, pch = 4)
+legend("top", legend = c("Directo", "Fay-Herriot"), ncol = 2, col = c(1, 4),
+       lwd = 2, pch = c(1, 4), cex = 1)
+
+```
+
+
+# Estimaciones directas vs Estimaciones indirectar (FH): desempleo
+
+```{r, echo = F}
+estimacionesDentroEMB_desempleo <-  Estimaciones_DIR_FH_desempleo[Estimaciones_DIR_FH_desempleo$Conjunto == "Dentro_EMB",]
+
+estimacionesDentroEMB_desempleo <- estimacionesDentroEMB_desempleo %>% arrange(-cv.DIR)
+estimacionesDentroEMB_desempleo$MCPIO <- fct_inorder(as.factor(estimacionesDentroEMB_desempleo$MCPIO))
+
+X11()
+plot(as.factor(estimacionesDentroEMB_desempleo$MCPIO), estimacionesDentroEMB_desempleo$cv.DIR, type = "n", ylab = "CV", 
+main = "Área (ordenado por los CVE de las estimaciones de desempleo directas)",
+cex.axis = 1, cex.lab = 1, las = 2)
+points(estimacionesDentroEMB_desempleo$cv.DIR, type = "p", col = 1, lwd = 2, pch = 1)
+points(estimacionesDentroEMB_desempleo$cv.FH, type = "p", col = 4, lwd = 2, pch = 4)
+legend("top", legend = c("Directo", "Fay-Herriot"), ncol = 2, col = c(1, 4),
+       lwd = 2, pch = c(1, 4), cex = 1)
+
+```
+
+# Ranking de los municipios según su ingreso
+
+```{r, echo = F}
+# coord_flio
+ranking_ingreso <- Estimaciones_DIR_FH_ingreso[c("MCPIO", "eblup.FH", "Conjunto")]
+ranking_ingreso  <- ranking_ingreso  %>% arrange(eblup.FH)
+ranking_ingreso$MCPIO <- fct_inorder(ranking_ingreso$MCPIO)
+ranking_ingreso <- ranking_ingreso[c(2:21, 97:116),]
+X11()
+plot_ranking_ingreso <- ggplot(data = ranking_ingreso, aes(x = MCPIO, y = eblup.FH, fill = Conjunto)) +
+  geom_bar(stat="identity") + geom_vline(xintercept = 20.5) + xlab("Municipio") + 
+  ylab("Promedio de ingreso (Miles de pesos") + 
+  coord_flip() + theme_bw()
+print(plot_ranking_ingreso)
+```
+
+
+# Ranking de los municipios según su desempleo
+
+```{r, echo = F}
+# coord_flio
+ranking_desempleo <- Estimaciones_DIR_FH_desempleo[c("MCPIO", "eblup.FH", "Conjunto")]
+ranking_desempleo  <- ranking_desempleo  %>% arrange(-eblup.FH)
+ranking_desempleo$MCPIO <- fct_inorder(ranking_desempleo$MCPIO)
+ranking_desempleo <- ranking_desempleo[c(2:21, 97:116),]
+
+plot_ranking_desempleo <- ggplot(data = ranking_desempleo, aes(x = MCPIO, y = eblup.FH, fill = Conjunto)) +
+  geom_bar(stat="identity") + geom_vline(xintercept = 20.5) + xlab("Municipio") + 
+  ylab("Proporción de desempleados") + 
+  coord_flip() + theme_bw()
+X11()
+print(plot_ranking_desempleo)
+```
+
